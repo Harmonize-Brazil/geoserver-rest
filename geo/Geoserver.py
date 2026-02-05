@@ -171,6 +171,7 @@ class Geoserver:
                 auth=(self.username, self.password),
                 **kwargs,
                 **self.request_options,
+                verify=False,
             )
         elif method.lower() == "get":
             return requests.get(
@@ -178,6 +179,7 @@ class Geoserver:
                 auth=(self.username, self.password),
                 **kwargs,
                 **self.request_options,
+                verify=False,
             )
         elif method.lower() == "put":
             return requests.put(
@@ -185,6 +187,7 @@ class Geoserver:
                 auth=(self.username, self.password),
                 **kwargs,
                 **self.request_options,
+                verify=False,
             )
         elif method.lower() == "delete":
             return requests.delete(
@@ -192,6 +195,7 @@ class Geoserver:
                 auth=(self.username, self.password),
                 **kwargs,
                 **self.request_options,
+                verify=False,
             )
         else:
             raise Exception("unsupported http method name.")
@@ -686,6 +690,7 @@ class Geoserver:
 
     def publish_time_dimension_to_coveragestore(
         self,
+        layer_name: Optional[str] = None,
         store_name: Optional[str] = None,
         workspace: Optional[str] = None,
         presentation: Optional[str] = "LIST",
@@ -721,8 +726,12 @@ class Geoserver:
         More about time support in geoserver WMS you can read here:
         https://docs.geoserver.org/master/en/user/services/wms/time.html
         """
-        url = "{0}/rest/workspaces/{1}/coveragestores/{2}/coverages/{2}".format(
-            self.service_url, workspace, store_name
+
+        if not layer_name:
+            layer_name = store_name
+
+        url = "{0}/rest/workspaces/{1}/coveragestores/{2}/coverages/{3}".format(
+            self.service_url, workspace, store_name, layer_name
         )
 
         headers = {"content-type": content_type}
@@ -749,9 +758,75 @@ class Geoserver:
             method="put", url=url, data=time_dimension_data, headers=headers
         )
         if r.status_code in [200, 201]:
-            return r.json()
+            # return r.json()
+            return r.status_code
         else:
             raise GeoserverException(r.status_code, r.content)
+
+
+    def publish_time_dimension_to_layers(
+        self,
+        layer_name: Optional[str] = None,
+        store_name: Optional[str] = None,
+        workspace: Optional[str] = None,
+        presentation: Optional[str] = "LIST",
+        attribute: Optional[str] = "date",
+        default_value: Optional[str] = "MINIMUM",
+        content_type: str = "application/xml; charset=UTF-8",
+    ):
+        """
+        Create time dimension in featuretypes to publish time series in geoserver.
+
+        Parameters
+        ----------
+        layer_name : str, optional
+        workspace : str, optional
+        presentation : str, optional
+        units : str, optional
+        default_value : str, optional
+        content_type : str
+
+        Notes
+        -----
+        More about time support in geoserver WMS you can read here:
+        https://docs.geoserver.org/master/en/user/services/wms/time.html
+        """
+
+        if not layer_name:
+            layer_name = store_name
+
+        url = "{0}/rest/workspaces/{1}/datastores/{2}/featuretypes/{3}".format(
+            self.service_url, workspace, store_name, layer_name
+        )
+        headers = {"content-type": content_type}
+
+        time_dimension_data = (
+            "<featureType>"
+            "<enabled>true</enabled>"
+            "<metadata>"
+            "<entry key='time'>"
+            "<dimensionInfo>"
+            "<enabled>true</enabled>"
+            "<presentation>{}</presentation>"
+            "<attribute>{}</attribute>"
+            "<defaultValue>"
+            "<strategy>{}</strategy>"
+            "</defaultValue>"
+            "</dimensionInfo>"
+            "</entry>"
+            "</metadata>"
+            "</featureType>".format(presentation, attribute, default_value)
+        )
+
+        r = self._requests(
+            method="put", url=url, data=time_dimension_data, headers=headers
+        )
+        if r.status_code in [200, 201]:
+            # return r.json()
+            return r.status_code
+        else:
+            raise GeoserverException(r.status_code, r.content)
+
 
     # _______________________________________________________________________________________________
     #
